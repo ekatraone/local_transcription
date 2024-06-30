@@ -1,0 +1,15 @@
+directories:
+  input: /scripts/local_transcription_v2/input_media
+  output: /scripts/local_transcription_v2/output
+
+logging:
+  level: INFO
+
+processing:
+  video_extensions: ['.mp4', '.avi', '.mov', '.mkv']
+  audio_extensions: ['.mp3', '.wav', '.m4a']
+
+transcription:
+  model: base
+  language: en
+  use_gpu: false
