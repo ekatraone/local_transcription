@@ -1,15 +1,8 @@
 directories:
-  input: /scripts/local_transcription_v2/input_media
-  output: /scripts/local_transcription_v2/output
+  path:  'D:\\video_audio\\video'
+  path1: 'D:\\video_audio\\audio'
+  path2: 'D:\\video_audio\\transcriptions'
 
-logging:
-  level: INFO
-
-processing:
-  video_extensions: ['.mp4', '.avi', '.mov', '.mkv']
-  audio_extensions: ['.mp3', '.wav', '.m4a']
-
-transcription:
-  model: base
-  language: en
-  use_gpu: false
+settings:
+  batch_size: 1
+  cooling_time: 10  # in seconds
