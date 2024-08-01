@@ -1,76 +1,47 @@
 import os
-import sys
 import yaml
-import logging
-from tqdm import tqdm
+from src.video_to_audio import extract_audio_from_video
+from src.transcription import load_whisper_model, transcribe_audio
+from src.utils import setup_logging, create_dir_if_not_exists, log_progress, cooling_period
 
-# Add the project root to the Python path
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(project_root)
+# Load configuration
+with open('config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
 
-# Diagnostic prints
-print("Current working directory:", os.getcwd())
-print("Contents of current directory:", os.listdir())
-print("Python path:", sys.path)
+path = config['directories']['path']
+path1 = config['directories']['path1']
+path2 = config['directories']['path2']
+batch_size = config['settings']['batch_size']
+cooling_time = config['settings']['cooling_time']
 
-if os.path.exists('src'):
-    print("Contents of src directory:", os.listdir('src'))
-    print("Full path of src directory:", os.path.abspath('src'))
-else:
-    print("src directory does not exist")
+setup_logging()
+create_dir_if_not_exists(path)
 
-# Now import the required modules
-try:
-    print("Attempting to import from src.video_to_audio...")
-    from src.video_to_audio import process_media
-    print("Successfully imported process_media from src.video_to_audio")
-    from src.transcription import transcribe_audios
-    from src.utils import setup_logging, create_output_directories
-except ImportError as e:
-    print(f"Error importing modules: {e}")
-    print("Make sure the file names in the 'src' directory match the import statements.")
-    print("Python is looking for modules in these locations:")
-    for path in sys.path:
-        print(f"  {path}")
-    sys.exit(1)
+model = load_whisper_model()
 
-def main():
-    try:
-        # Load configuration
-        with open('config.yaml', 'r') as config_file:
-            config = yaml.safe_load(config_file)
+video_files = [f for f in os.listdir(path) if f.endswith(('.mp4', '.mkv', '.avi', '.mov'))]
+print(f"Found {len(video_files)} video files.")
 
-        # Setup logging
-        logger = setup_logging(level=logging.INFO)
-
-        # Create output directories
-        output_dir = create_output_directories(config['directories']['output'])
-
-        # Process media files
-        logger.info(f"Starting media processing from {config['directories']['input']}")
-        audio_files = process_media(config['directories']['input'], output_dir)
-        print(f"Processed audio files: {audio_files}")
-        logger.info(f"Processed audio files: {audio_files}")
-
-        # Check if audio files were processed correctly
-        if not audio_files:
-            logger.error("No audio files processed. Check if the input directory contains media files.")
-            sys.exit(1)
-
-        # Transcribe audio files
-        logger.info("Starting audio transcription")
+for i in range(0, len(video_files), batch_size):
+        batch_files = video_files[i:i + batch_size]
         
-        total_files = len(audio_files)
-        with tqdm(total=total_files, desc="Overall Progress", unit="file") as pbar:
-            def update_progress(future):
-                pbar.update()
+        for video_file in batch_files:
+            video_path = os.path.join(path, video_file)
+            audio_file_name = os.path.splitext(video_file)[0] + '.mp3'
+            audio_path = os.path.join(path1, audio_file_name)
             
-            transcribe_audios(audio_files, output_dir, config['transcription'], update_progress)
+            log_progress(f"Processing {video_file}...")
+            extract_audio_from_video(video_path, audio_path)
+            log_progress(f"Audio saved to {audio_path}")
 
-        logger.info("Processing complete")
-    except Exception as e:
-        logging.error(f"An error occurred: {str(e)}")
-        sys.exit(1)
+            transcription_file_name = os.path.splitext(video_file)[0] + '.txt'
+            transcription_path = os.path.join(path2, transcription_file_name)
+            
+            log_progress(f"Transcribing audio from {audio_path}...")
+            transcription = transcribe_audio(model, audio_path)
+            with open(transcription_path, 'w') as f:
+                f.write(transcription)
+            log_progress(f"Transcription saved to {transcription_path}")
 
-if __name__ == "__main__":
-    main()
+        log_progress("Batch processing complete.")
+        cooling_period(cooling_time)
